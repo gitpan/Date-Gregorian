@@ -1,0 +1,18 @@
+Revision history for Perl extension Date::Gregorian.
+
+0.01  Mon Nov 29 23:40:56 1999
+	- original version; created by h2xs 1.1.1.1.2.1
+
+0.02  Sat Jun 17 12:01:29 2000
+	- revised integer arithmetic to deal with years before AD 1
+
+0.03  Tue Aug  7 08:19:25 2001
+	- extended POD documentation and test suite
+
+0.04  Tue Oct 16 13:13:15 2001
+	- merged set_{first|next|prev|last}_wd methods into set_weekday
+	- added module Date::Gregorian::Exact
+
+0.05  Fri Apr 19 20:05:01 2002
+	- got rid of pseudo-hashes
+
