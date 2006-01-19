@@ -1,13 +1,13 @@
 Date::Gregorian - Gregorian calendar
 ====================================
 
-Copyright (c) 1999-2002, Martin Hasch <martin@mathematik.uni-ulm.de>.
+Copyright (c) 1999-2005, Martin Hasch <hasch-cpan-dg@cozap.com>.
 All rights reserved.
 
 Version
 -------
 
-This is Version 0.05 of Date::Gregorian.
+This is Version 0.07 of Date::Gregorian.
 
 DSLI status
 -----------
@@ -58,32 +58,23 @@ Changes
 -------
 
 Since its first release, no major changes have been made to the
-module's interface.  For a detailed history of changes, see the
-Changes file.
+module's basic interface.  Version 0.07 finally introduced the
+Date::Gregorian::Business extension.  For a detailed history of
+changes, see the Changes file.
 
 Future enhancements
 -------------------
 
-Less limited locale support and/or more functionality to deal with
-regional calendar variations might be added some day.
+The oversimplifying Date::Gregorian::Exact extension is considered
+deprecated and most likely will drop out of the distribution at
+some point.  Look into the DateTime suite of modules for a more
+comprehensive approach to handling timestamps and localization.
 
-You should not expect substantial speed optimizations, however.
-Consider some plain functional implementation heavily using table
-lookups rather than integer arithmetic, and of course XS code, if
-you really have to economize on milliseconds.
+More samples of business calendars and better ways to define even
+more of them will be added next.
 
-Disclaimer
-----------
+Fractional business days are an experimental feature so far.
+Their semantics are subject to further scrutiny.
 
-Most of the code provided here is now quite old in terms of software
-development.  It has been maintained mostly to avoid migration
-issues in other software and only marginally for any merit of its
-own.  While the author appreciates any efforts to improve existing
-user interfaces rather than create new ones, this contribution
-certainly falls short of doing so.  It is released in order to make
-publicly available what was once useful for some people, but without
-having had the time nor claimed authority to thoroughly counter-examine
-and discuss most of the known alternatives.  Still, the author will
-be happy to consider suggestions for improvement or learn that it
-has in fact become obsolete.
+More suggestions are welcome.
 

@@ -2,7 +2,7 @@
 # This package is free software; you can redistribute it and/or modify it
 # under the same terms as Perl itself.
 #
-# $Id: Exact.pm,v 1.3 2002/04/19 20:24:57 martin Stab $
+# $Id: Exact.pm,v 1.5 2006/01/19 18:08:55 martin Stab $
 
 package Date::Gregorian::Exact;
 
@@ -114,7 +114,7 @@ sub get_localtime {
     my $time = $self->SUPER::get_gmtime;
     return undef unless defined $time;
     $time += floor($self->[F_SECONDS] || 0);
-    my $guess = $self->new;
+    my $guess = Date::Gregorian::Exact->new->set_date($self);
     my ($S, $M, $H, $d, $m, $y) = localtime $time;
     # second shot: ignore DST change, error should be less than one day
     $guess->set_ymd(1900+$y, 1+$m, $d)->set_hms($H, $M, $S);
@@ -126,6 +126,72 @@ sub get_localtime {
 	$time -= $guess->get_seconds_since($self);
     }
     return $time;
+}
+
+sub set_hour {
+    my Date::Gregorian::Exact $self = $_[0];
+    my $hour = $_[1];
+    my $h = floor($self->[F_SECONDS] / 3600);
+    $self->[F_SECONDS] += ($hour - $h) * 3600;
+    return $self->_normalize;
+}
+
+sub set_minute {
+    my Date::Gregorian::Exact $self = $_[0];
+    my $min = $_[1];
+    my $m = floor($self->[F_SECONDS] / 60) % 60;
+    $self->[F_SECONDS] += ($min - $m) * 60;
+    return $self->_normalize;
+}
+
+sub set_second {
+    my Date::Gregorian::Exact $self = $_[0];
+    my $sec = $_[1];
+    my $m = floor($self->[F_SECONDS] / 60);
+    $self->[F_SECONDS] = $m * 60 + $sec;
+    return $self->_normalize;
+}
+
+sub get_hour {
+    my Date::Gregorian::Exact $self = $_[0];
+    return floor($self->[F_SECONDS] / 3600);
+}
+
+sub get_minute {
+    my Date::Gregorian::Exact $self = $_[0];
+    return floor($self->[F_SECONDS] / 60) % 60;
+}
+
+sub get_second {
+    my Date::Gregorian::Exact $self = $_[0];
+    return $self->[F_SECONDS] - floor($self->[F_SECONDS] / 60) * 60;
+}
+
+sub round_seconds {
+    my Date::Gregorian::Exact $self = $_[0];
+    $self->[F_SECONDS] = floor(0.5 + $self->[F_SECONDS]);
+    return $self->_normalize;
+}
+
+sub round_minutes {
+    my Date::Gregorian::Exact $self = $_[0];
+    $self->[F_SECONDS] = floor(0.5 + $self->[F_SECONDS] / 60) * 60;
+    return $self->_normalize;
+}
+
+sub round_hours {
+    my Date::Gregorian::Exact $self = $_[0];
+    $self->[F_SECONDS] = floor(0.5 + $self->[F_SECONDS] / 3600) * 3600;
+    return $self->_normalize;
+}
+
+sub round_days {
+    my Date::Gregorian::Exact $self = $_[0];
+    if (43200 <= $self->[F_SECONDS]) {
+	$self->SUPER::add_days(1);
+    }
+    $self->[F_SECONDS] = 0;
+    return $self;
 }
 
 # ----- superclass methods -----
@@ -216,10 +282,28 @@ Date::Gregorian::Exact - timestamp precision extension for Date::Gregorian
   $date->set_localtime($time);
   $time = $date->get_localtime;
 
+  $date->set_hour(23);
+  $date->set_minute(59);
+  $date->set_second(59);
+
+  $hour = $date->get_hour;
+  $min  = $date->get_minute;
+  $sec  = $date->get_second;
+
+  $date->round_seconds;
+  $date->round_minutes;
+  $date->round_hours;
+  $date->round_days;
+
 =head1 DESCRIPTION
 
 I<Date::Gregorian::Exact> is a subclass extending Date::Gregorian
 towards higher precision (sufficient to deal with timestamps).
+
+As of Date::Gregorian version 0.07, this subclass is considered
+deprecated.  Recent versions of the I<DateTime> suite of modules
+offer a considerably more substantial approach to the intricacies
+of local clocks and timezones.
 
 With Date::Gregorian::Exact objects, all methods of the base class
 Date::Gregorian work exactly as described there, except where noted
@@ -227,7 +311,7 @@ below.  In particular, most parameters must still be integer values.
 
 Exceptions to this rule are I<add_days> and I<get_days_since>, now
 handling fractions of days as well as whole days, and I<set/get_gmtime>,
-now no longer mapping any daytime to midnight.
+now no longer mapping every time of day to midnight.
 
 =head2 Additional Methods
 
@@ -245,15 +329,31 @@ in the current locale.  This means, local timezone and daylight
 saving mode are taken into account like the localtime Perl function
 does.
 
-Note, however, that timezones and daylight saving settings are not
-(yet) part of this module's data model.  Any arithmetic done on
-these date objects assumes an ideal calendar with days of a uniform
-length of 24 hours.  Guess why astronomers don't like daylight
-saving time either.
+Note, however, that timezones, leap seconds and daylight saving
+settings are not (yet) part of this module's data model.  Any
+arithmetic on our date objects assumes an ideal calendar with days
+of a uniform length of 24 equally long hours.  This can lead to
+incompatibilities with other date and time processing entities.
+
+I<set_hour>, I<set_minute>, I<set_second>, I<get_hour>, I<get_minute>,
+and I<get_second> access the additional precision components of
+this extension class.
+
+I<round_seconds>, I<round_minutes>, I<round_hours>, and
+I<round_days> move an arbitrary date and time to the nearest one
+at a seconds, minutes, hours, or days boundary, respectively.
+After I<round_days> is called, I<get_hour>, I<get_minute>, and
+I<get_second> will return zero values; after I<round_hours>,
+I<get_minute> and I<get_second> will return zero, and so on.
+
+=head1 DEPRECATION NOTICE
+
+This module will not be part of Date::Gregorian distributions
+published after December 31, 2006.
 
 =head1 AUTHOR
 
-Martin Hasch <martin@mathematik.uni-ulm.de>, November 1999.
+Martin Hasch <hasch-cpan-dg@cozap.com>, November 1999.
 
 =head1 SEE ALSO
 

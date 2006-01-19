@@ -1,7 +1,11 @@
 Changes
-Gregorian.pm
-Gregorian/Exact.pm
 MANIFEST
+META.yml
 Makefile.PL
 README
-test.pl
+lib/Date/Gregorian.pm
+lib/Date/Gregorian/Business.pm
+lib/Date/Gregorian/Exact.pm
+t/basic.t
+t/business.t
+t/exact.t

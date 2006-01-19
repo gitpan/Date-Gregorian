@@ -16,3 +16,16 @@ Revision history for Perl extension Date::Gregorian.
 0.05  Fri Apr 19 20:05:01 2002
 	- got rid of pseudo-hashes
 
+0.06  Tue May 21 23:06:02 2002
+	- revised POD documentation
+	- added rounding in Date::Gregorian::Exact
+
+0.07  Thu Jan 19 07:38:43 2006
+	- added methods today and get_days_in_year
+	- added module Date::Gregorian::Business
+	- split test.pl into t/*.t
+	- fixed set_yd for years without Jan 1 (which can happen
+	  close to a user-defined calendar reformation date)
+	- portability fix for set/get_gmtime where OS-specific gmtime(0)
+	  is something else than 00:00:00, January 1, 1970.
+
