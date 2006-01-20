@@ -29,3 +29,6 @@ Revision history for Perl extension Date::Gregorian.
 	- portability fix for set/get_gmtime where OS-specific gmtime(0)
 	  is something else than 00:00:00, January 1, 1970.
 
+0.08
+	- added t/pod.t
+	- fixed META.yml

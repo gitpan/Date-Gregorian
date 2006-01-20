@@ -2,7 +2,7 @@
 # This package is free software; you can redistribute it and/or modify it
 # under the same terms as Perl itself.
 #
-# $Id: Gregorian.pm,v 1.6 2006/01/19 17:25:36 martin Stab $
+# $Id: Gregorian.pm,v 1.7 2006/01/20 12:29:47 martin Stab $
 
 package Date::Gregorian;
 
@@ -23,7 +23,7 @@ require Exporter;
 );
 @EXPORT_OK = map @{$_}, values %EXPORT_TAGS;
 
-$VERSION = 0.07;
+$VERSION = 0.08;
 
 # ----- object definition -----
 

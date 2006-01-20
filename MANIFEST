@@ -9,3 +9,4 @@ lib/Date/Gregorian/Exact.pm
 t/basic.t
 t/business.t
 t/exact.t
+t/pod.t
