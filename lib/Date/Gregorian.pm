@@ -2,7 +2,7 @@
 # This package is free software; you can redistribute it and/or modify it
 # under the same terms as Perl itself.
 #
-# $Id: Gregorian.pm,v 1.7 2006/01/20 12:29:47 martin Stab $
+# $Id: Gregorian.pm,v 1.9 2006/01/21 22:30:32 martin Stab $
 
 package Date::Gregorian;
 
@@ -23,7 +23,7 @@ require Exporter;
 );
 @EXPORT_OK = map @{$_}, values %EXPORT_TAGS;
 
-$VERSION = 0.08;
+$VERSION = 0.09;
 
 # ----- object definition -----
 
@@ -294,7 +294,7 @@ sub check_ywd {
 	defined($w) && 1 <= $w && $w <= 53 &&
 	defined($y) && -1469871 <= $y && $y <= 5879489
     ) {
-	my $n = _dec31dayno($y-1) - 3;
+	my $n = _dec31dayno($y-1, $self->[F_TR_DATE]) - 3;
 	$n += $w * 7 + $d - $n % 7;
 	my $ymd = [_dayno2ymd($n, $self->[F_TR_DATE])];
 	my $ydyw = _ydyw($n, $self->[F_TR_DATE], $ymd->[0]);
@@ -400,6 +400,32 @@ sub get_days_in_year {
 	_dec31dayno($year-1, $self->[F_TR_DATE]);
 }
 
+sub iterate_days_upto {
+    my ($self, $limit, $rel, $step) = @_;
+    my $dayno = $self->[F_DAYNO];
+    my $final = $limit->[F_DAYNO] - ($rel ne '<=');
+    $step = abs($step || 1);
+    return sub {
+	return undef if $dayno > $final;
+	@{$self}[F_DAYNO, F_YMD, F_YDYW] = ($dayno, undef, undef);
+	$dayno += $step;
+	return $self;
+    };
+}
+
+sub iterate_days_downto {
+    my ($self, $limit, $rel, $step) = @_;
+    my $dayno = $self->[F_DAYNO];
+    my $final = $limit->[F_DAYNO] + ($rel eq '>');
+    $step = abs($step || 1);
+    return sub {
+	return undef if $dayno < $final;
+	@{$self}[F_DAYNO, F_YMD, F_YDYW] = ($dayno, undef, undef);
+	$dayno -= $step;
+	return $self;
+    };
+}
+
 # no DESTROY method, nothing to clean up
 
 1;
@@ -447,12 +473,24 @@ Date::Gregorian - Gregorian calendar
   $date->set_gmtime($time);
   $time = $date->get_gmtime;
 
-  $date->configure(1752, 9, 14);
-  $date->configure(1752, 9, 14, 1753);        # United Kingdom
-  $date2->configure(1918, 2, 14);             # Russia
+  $iterator = $date->iterate_days_upto($date2, '<');
+  $iterator = $date->iterate_days_upto($date2, '<', $step);
+  $iterator = $date->iterate_days_upto($date2, '<=');
+  $iterator = $date->iterate_days_upto($date2, '<=', $step);
+  $iterator = $date->iterate_days_downto($date2, '>');
+  $iterator = $date->iterate_days_downto($date2, '>', $step);
+  $iterator = $date->iterate_days_downto($date2, '>=');
+  $iterator = $date->iterate_days_downto($date2, '>=', $step);
+  while ($iterator->()) {
+    printf "%d-%02d-%02d\n", $date->get_ymd;
+  }
 
   $date2->set_ymd(1917, 10, 25);      # pre-Gregorian Oct 25, 1917
   $date->set_date($date2);            # Gregorian Nov 7, 1917 (same day)
+
+  $date->configure(1752, 9, 14);
+  $date->configure(1752, 9, 14, 1753);        # United Kingdom
+  $date2->configure(1918, 2, 14);             # Russia
 
   if ($date->is_gregorian) {
     # date is past configured calendar reformation,
@@ -501,8 +539,8 @@ year the new easter schedule was used (default 1583).
 The module is based on an algorithm devised by C. F. Gauss (1777-1855).
 It is completely written in Perl for maximum portability.
 
-All methods except get_* return their object.  This allows for
-shortcuts like:
+All methods except get_* and iterate_* return their object.  This
+allows for shortcuts like:
 
   $pentecost = Date::Gregorian->new->set_easter(2000)->add_days(49);
 
@@ -513,6 +551,10 @@ first week of a year is the one containing January 4th.  These
 definitions are slightly closer to ISO 8601 than to Perl's builtin
 time conversion functions.  Weekday numbers, however, are zero-based
 for ease of use as array indices.
+
+(Author's note: I wish now I had defined 1-based weekdays when the
+module was young, to make things nice and consistent, but now it
+is too late.)
 
 Numeric parameters must be integer numbers throughout the module.
 
@@ -526,7 +568,7 @@ nothing is exported.
 
 I<new> creates a Date::Gregorian object from scratch (if called as
 a class method) or as a copy of an existing object.  The latter is
-more efficient than the former.
+more efficient than the former.  I<new> does not take any arguments.
 
 I<set_ymd> sets year, month and day to new absolute values.  Days
 and months out of range are silently folded to standard dates, in
@@ -584,22 +626,25 @@ one.  Look at it as a subtraction operation, yielding a positive
 result if something smaller is subtracted from something larger,
 "smaller" meaning "earlier" in this context.
 
+I<iterate_days_upto> and I<iterate_days_downto> provide convenient
+methods to iterate over a range of dates.  They return a reference
+to a subroutine that can be called without argument in a while
+condition to set the given date iteratively to each one of a sequence
+of dates.  The current date is always the first one to be visited
+(unless the sequence is all empty).  The limit parameter determines
+the end of the sequence, together with the relation parameter:  '<'
+excludes the upper limit from the sequence, '<=' includes the upper
+limit, '>=' includes the lower limit and '>' excludes the lower
+limit.  The step parameter is optional.  It must be greater than
+zero and defines how many days the dates in the sequence lie apart.
+It defaults to one.
+
+Each iterator maintains its own state; therefore it is legal to run
+more than one iterator in parallel or even create new iterators
+within iterations.
+
 I<set_easter> computes the date of Easter sunday of a given year,
 taking into account how the date object was configured.
-
-I<configure> defines the way the Gregorian calendar reformation
-should be handled in calculations with the date object and any new
-ones later cloned with I<new> from this one.  The first three
-arguments specify the year, month and day of the first day the new
-calendar was in use.  The optional fourth argument defines the first
-year the new easter schedule has to be used in easter calculations.
-Re-configuring a date object is legal and does not change the day
-in history it represents while possibly changing the year, month
-and day values related to it.
-
-I<is_gregorian> tells whether a date is past the configured calendar
-reformation and thus will yield year, month and day values in
-Gregorian mode.
 
 I<set_weekday> computes a date matching a given weekday that is
 close to the date it is applied to.  The optional relation parameter
@@ -614,14 +659,14 @@ Gregorian mode.
 I<set_localtime> likewise computes a date value equivalent to a
 given time value in the current locale.
 
-I<set_gmtime> computes a date value equivalent to a given Unix
+I<set_gmtime> computes a date value equivalent to a given system
 timestamp in the GMT locale.
 
-I<get_gmtime> converts a date value back to a Unix timestamp in the
-GMT locale.  Undef is returned if the date seems to be out of range.
-Note that the precision of timestamps represented by date objects
-is normally limited to days.  Thus converting a timestamp to a date
-and back again usually truncates the timestamp to midnight.
+I<get_gmtime> converts a date value back to a system timestamp in
+the GMT locale.  Undef is returned if the date seems to be out of
+range.  Note that the precision of timestamps represented by date
+objects is normally limited to days.  Thus converting a timestamp
+to a date and back again usually truncates the timestamp to midnight.
 Extension classes may behave differently, however.
 
 Note that Date::Gregorian does not define a I<get_localtime>
@@ -630,6 +675,20 @@ changes, leap seconds and other peculiarities of local timezones.
 
 I<get_days_in_year> computes the number of days in a given year
 (independent of the year stored in the date object).
+
+I<configure> defines the way the Gregorian calendar reformation
+should be handled in calculations with the date object and any new
+ones later cloned with I<new> from this one.  The first three
+arguments specify the year, month and day of the first day the new
+calendar was in use.  The optional fourth argument defines the first
+year the new easter schedule has to be used in easter calculations.
+Re-configuring a date object is legal and does not change the day
+in history it represents while possibly changing the year, month
+and day values related to it.
+
+I<is_gregorian> returns a boolean value telling whether a date is
+past the configured calendar reformation and thus will yield year,
+month and day values in Gregorian mode.
 
 =head1 AUTHOR
 

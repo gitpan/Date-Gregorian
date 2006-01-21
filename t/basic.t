@@ -7,7 +7,7 @@
 
 ######################### We start with some black magic to print on failure.
 
-BEGIN { $| = 1; print "1..127\n"; }
+BEGIN { $| = 1; print "1..207\n"; }
 END {print "not ok 1\n" unless $loaded;}
 use Date::Gregorian;
 $loaded = 1;
@@ -295,7 +295,7 @@ test 122, 361 == $date->get_days_in_year(2100);
 $date->set_yd(2100, 1);
 test_ymd(123, $date, 2100, 1, 5);
 
-# A reformation date before March 1, 100, creates ambiguities.
+# A reformation date before March 1, 200, creates ambiguities.
 # Here we check whether these are handled gracefully.
 $date->configure(-5000, 1, 1);
 test 124, 405 == $date->get_days_in_year(-5000);
@@ -305,5 +305,177 @@ $date->set_ymd(-5001, 12, 31)->add_days(40);
 test_ymdg(126, $date, -5000, 2, 9, 0);
 $date->add_days(1);
 test_ymdg(127, $date, -5000, 1, 1, 1);
+
+# A reformation date after Dec 31, 48901, can create empty years.
+$date->configure(48902, 1, 1);
+test 128, 0 == $date->get_days_in_year(48901);
+$date->set_ymd(48900, 12, 31);
+test_ymdg(129, $date, 48900, 12, 31, 0);
+$date->add_days(1);
+test_ymdg(130, $date, 48902, 1, 1, 1);
+
+# --- checks for iterators ---
+
+$date = Date::Gregorian->new->set_ymd(2005, 12, 31);
+$date2 = $date->new->add_days(3);
+my $iter = $date->iterate_days_upto($date2, '<');
+# warn !defined($iter)? "iterator undefined\n": "ref of iterator is ", ref($iter), "\n";
+# warn "Martin was here\n";
+test 131, defined($iter) && 'CODE' eq ref($iter);
+
+$date->add_days(20);
+$date2->add_days(2);
+my $iter2 = $date->iterate_days_downto($date2, '>=', 5);
+test 132, defined($iter2) && 'CODE' eq ref($iter);
+
+test 133, $iter->();
+test_ymd(134, $date, 2005, 12, 31);
+test 135, $iter2->();
+test_ymd(136, $date, 2006, 1, 20);
+test 137, $iter2->();
+test_ymd(138, $date, 2006, 1, 15);
+test 139, $iter->() && $iter->();
+test_ymd(140, $date, 2006, 1, 2);
+test 141, $iter2->();
+test_ymd(142, $date, 2006, 1, 10);
+test 143, !$iter->();
+test_ymd(144, $date, 2006, 1, 10);
+test 145, $iter2->();
+test_ymd(146, $date, 2006, 1, 5);
+test 147, !$iter2->();
+test_ymd(148, $date, 2006, 1, 5);
+
+$date->set_ymd(2006, 1, 20);
+$iter = $date->iterate_days_downto($date2, '>', 5);
+test 149, $iter->();
+test 150, $iter->();
+test 151, $iter->();
+test 152, !$iter->();
+test_ymd(153, $date, 2006, 1, 10);
+
+$date->set_ymd(2006, 1, 10);
+$iter = $date->iterate_days_downto($date2, '>');
+$iter2 = $date2->iterate_days_upto($date, '<');
+test 154, $iter->();
+test 155, $iter2->();
+test_ymd(156, $date, 2006, 1, 10);
+test_ymd(157, $date2, 2006, 1, 5);
+test 158, $iter->() && $iter->() && $iter->() && $iter->();
+test 159, $iter2->() && $iter2->() && $iter2->() && $iter2->();
+test_ymd(160, $date, 2006, 1, 6);
+test_ymd(161, $date2, 2006, 1, 9);
+test 162, !$iter->();
+test 163, !$iter2->();
+
+$date->set_ymd(2006, 1, 10);
+$date2->set_date($date);
+$iter = $date->iterate_days_downto($date2, '>=');
+$iter2 = $date2->iterate_days_upto($date, '<=');
+test 164, $iter->();
+test 165, $iter2->();
+test 166, !$iter->();
+test 167, !$iter2->();
+test_ymd(168, $date, 2006, 1, 10);
+test_ymd(169, $date2, 2006, 1, 10);
+
+$date->set_ymd(2006, 1, 10);
+$date2->set_date($date);
+$iter = $date->iterate_days_downto($date2, '>');
+$iter2 = $date2->iterate_days_upto($date, '<');
+test 170, !$iter->();
+test 171, !$iter2->();
+
+$date->set_ymd(2006, 1, 9);
+$date2->set_ymd(2006, 1, 11);
+$iter = $date->iterate_days_downto($date2, '>=');
+$iter2 = $date2->iterate_days_upto($date, '<=');
+test 172, !$iter->();
+test 173, !$iter2->();
+
+$date->set_ymd(2006, 1, 6);
+$date2->set_ymd(2006, 1, 20);
+$iter = $date->iterate_days_upto($date2, '<', 7);
+$date->add_days(3);
+$iter2 = $date->iterate_days_upto($date2, '<', 7);
+test 174, $iter->();
+test_ymd(175, $date, 2006, 1, 6);
+test 176, $iter->();
+test_ymd(177, $date, 2006, 1, 13);
+test 178, !$iter->();
+test 179, $iter2->();
+test_ymd(180, $date, 2006, 1, 9);
+test 181, $iter2->();
+test_ymd(182, $date, 2006, 1, 16);
+test 183, !$iter2->();
+
+$date->set_ymd(2006, 1, 6);
+$date2->set_ymd(2006, 1, 20);
+$iter = $date->iterate_days_upto($date2, '<=', 7);
+$date->add_days(1);
+$iter2 = $date->iterate_days_upto($date2, '<=', 7);
+test 184, $iter->();
+test_ymd(185, $date, 2006, 1, 6);
+test 186, $iter->() && $iter->();
+test_ymd(187, $date, 2006, 1, 20);
+test 188, !$iter->();
+test 189, $iter2->();
+test_ymd(190, $date, 2006, 1, 7);
+test 191, $iter2->();
+test_ymd(192, $date, 2006, 1, 14);
+test 193, !$iter2->();
+
+$date->set_ymd(2004, 5, 1)->set_weekday(0, '<=');
+$date2->set_ymd(2004, 6, 1);
+$iter = $date->iterate_days_upto($date2, '<', 7);
+$result = '';
+my $loopcheck = 6;
+my $loopcheck2 = -1;
+while ($iter->()) {
+    last if !$loopcheck--;
+    my $w = ($date->get_ywd)[1];
+    $result .= sprintf "(%2d)", $w;
+    $date2->set_date($date)->add_days(7);
+    $iter2 = $date->iterate_days_upto($date2, '<');
+    $loopcheck2 = 7;
+    while ($iter2->()) {
+	last if !$loopcheck2--;
+	my ($y, $m, $d) = $date->get_ymd;
+	$result .= 5 == $m? sprintf(" %02d", $d): '   ';
+    }
+    last if $loopcheck2;
+    $result .= "\n";
+}
+test 194, !$loopcheck && !$loopcheck2;
+test 195, $result eq
+    "(18)                01 02\n" .
+    "(19) 03 04 05 06 07 08 09\n" .
+    "(20) 10 11 12 13 14 15 16\n" .
+    "(21) 17 18 19 20 21 22 23\n" .
+    "(22) 24 25 26 27 28 29 30\n" .
+    "(23) 31                  \n";
+
+# --- some more general tests ---
+
+$date = Date::Gregorian->new->set_ymd(1998, 26, 29);
+test_ymd(196, $date, 2000, 2, 29);
+$date->set_ymd(2100, 3, 0);
+test_ymd(197, $date, 2100, 2, 28);
+$date->set_ymd(1502, -22, 29);
+test_ymd(198, $date, 1500, 2, 29);
+
+$date = $date->new->set_ymd(2006, 11, 11);
+$result = $date->check_ywd(2006, 52, 6);
+test 199, $result;
+test 200, $result == $date;
+test_ymd(201, $date, 2006, 12, 31);
+$result = $date->check_ywd(2006, 53, 0);
+test 202, !defined($result);
+test_ymd(203, $date, 2006, 12, 31);
+$result = $date->check_ywd(2006, 0, 6);
+test 204, !defined($result);
+test_ymd(205, $date, 2006, 12, 31);
+$result = $date->check_ywd(2004, 53, 6);
+test 206, $result;
+test_ymd(207, $date, 2005, 1, 2);
 
 __END__

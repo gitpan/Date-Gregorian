@@ -2,7 +2,7 @@
 # This package is free software; you can redistribute it and/or modify it
 # under the same terms as Perl itself.
 #
-# $Id: Business.pm,v 1.2 2006/01/19 18:05:35 martin Stab $
+# $Id: Business.pm,v 1.3 2006/01/21 22:40:48 martin Stab $
 
 package Date::Gregorian::Business;
 
@@ -24,7 +24,7 @@ use constant FIELDS      => F_OFFSET+4;
 
 # ----- predefined variables -----
 
-$VERSION = 0.01;
+$VERSION = 0.02;
 
 # elements of default biz calendars
 my $skip_weekend    = [ 0,  0,  0,  0,  0,  2,  1];  # Sat, Sun -> Mon
@@ -94,9 +94,14 @@ my $default_configuration = 'us';
 
 # check whether a given year is in a range or general selection
 sub _select_year {
-    my ($self, $selection, $year) = @_;
-    return $year == $selection        if !ref $selection;
-    return $selection->($self, $year) if 'CODE' eq ref $selection;
+    my ($self, $day, $year) = @_;
+    my $selection = $day->[3];
+    if (!ref $selection) {
+	return $year == $selection;
+    }
+    if ('CODE' eq ref $selection) {
+	return $selection->($self, $year, @{$day}[0, 1]);
+    }
     return
 	(!defined($selection->[0]) || $selection->[0] <= $year) &&
 	(!defined($selection->[1]) || $year <= $selection->[1]);
@@ -115,7 +120,7 @@ sub _make_make_cal {
 	my $index;
 	my $calendar = $firstday->get_empty_calendar($year, $weekly);
 	foreach my $day (@$yearly) {
-	    if (!defined($day->[3]) || _select_year($date, $day->[3], $year)) {
+	    if (!defined($day->[3]) || _select_year($someday, $day, $year)) {
 		if ($day->[0]) {
 		    $index =
 			$someday->set_ymd($year, @{$day}[0, 1])
@@ -143,7 +148,7 @@ sub _more_xmas {
     my $make_cal = _make_make_cal(@_);
     return sub {
 	my $calendar = $make_cal->(@_);
-	if ($calendar->[-1]) {
+	if (8 <= @$calendar && $calendar->[-1]) {
 	    @{$calendar}[-8, -1] = (0.5, 0.5);
 	}
 	return $calendar;
@@ -255,10 +260,9 @@ sub get_alignment {
     return $self->[F_ALIGNMENT];
 }
 
-# get alignment or default, safe to use with any Date::Gregorian object
-sub _get_alignment {
-    my $date = $_[0];
-    return $date->isa('Date::Gregorian::Business')? $date->[F_ALIGNMENT]: 0;
+# tweak super class to provide default alignment
+sub Date::Gregorian::get_alignment {
+    return 0;
 }
 
 sub is_businessday {
@@ -280,9 +284,9 @@ sub _count_businessdays_up {
 
     --$day if !$self->[F_ALIGNMENT];
     while (0 < $days) {
-	if (@$calendar <= $day) {
-	    $day = 0;
+	while (@$calendar <= $day) {
 	    $calendar = $self->_calendar(++$year);
+	    $day = 0;
 	}
 	do {
 	    no integer;
@@ -306,10 +310,9 @@ sub _count_businessdays_down {
 
     --$day if !$self->[F_ALIGNMENT];
     while (0 < $days) {
-	if (0 < $day) {
-	    -- $day;
-	}
-	else {
+	--$day;
+	--$days;
+	while ($day < 0) {
 	    $calendar = $self->_calendar(--$year);
 	    $day = $#$calendar;
 	}
@@ -317,7 +320,6 @@ sub _count_businessdays_down {
 	    no integer;
 	    $result += $calendar->[$day];
 	};
-	--$days;
     }
     return $result;
 }
@@ -339,7 +341,7 @@ sub get_businessdays_since {
     my ($self, $then) = @_;
     my $delta =
 	$self->get_days_since($then) +
-	$self->[F_ALIGNMENT] - _get_alignment($then);
+	$self->[F_ALIGNMENT] - $then->get_alignment;
     if ($delta > 0) {
 	return $self->_count_businessdays_down($delta);
     }
@@ -353,7 +355,7 @@ sub get_businessdays_until {
     my ($self, $then) = @_;
     my $delta =
 	$self->get_days_since($then) +
-	$self->[F_ALIGNMENT] - _get_alignment($then);
+	$self->[F_ALIGNMENT] - $then->get_alignment;
     if ($delta > 0) {
 	return -$self->_count_businessdays_down($delta);
     }
@@ -372,10 +374,8 @@ sub set_next_businessday {
     return $self if '<' ne $relation && '>' ne $relation && $calendar->[$day];
     if ('<' eq $relation || '<=' eq $relation) {
 	do {
-	    if (0 < $day) {
-		--$day;
-	    }
-	    else {
+	    --$day;
+	    while ($day < 0) {
 		$calendar = $self->_calendar(--$year);
 		$day = $#$calendar;
 	    }
@@ -384,17 +384,63 @@ sub set_next_businessday {
     }
     else {
 	do {
-	    if ($day < $#$calendar) {
-		++$day;
-	    }
-	    else {
-		$day = 0;
+	    ++$day;
+	    while (@$calendar <= $day) {
 		$calendar = $self->_calendar(++$year);
+		$day = 0;
 	    }
 	}
 	while (!$calendar->[$day]);
     }
     return $self->set_yd($year, $day+1);
+}
+
+sub iterate_businessdays_upto {
+    my ($self, $limit, $rel) = @_;
+    my $days = ($rel eq '<=') - $self->get_days_since($limit);
+    my ($year, $day, $calendar);
+    if (0 < $days) {
+	($year, $day) = $self->get_yd;
+	--$day;
+	$calendar = $self->_calendar($year);
+    }
+    return sub {
+	while (0 < $days) {
+	    while (@$calendar <= $day) {
+		$calendar = $self->_calendar(++$year);
+		$day = 0;
+	    }
+	    --$days;
+	    if ($calendar->[$day++]) {
+		return $self->set_yd($year, $day);
+	    }
+	}
+	return undef;
+    };
+}
+
+sub iterate_businessdays_downto {
+    my ($self, $limit, $rel) = @_;
+    my $days = $self->get_days_since($limit) + ($rel ne '>');
+    my ($year, $day, $calendar);
+    if (0 < $days) {
+	($year, $day) = $self->get_yd;
+	--$day;
+	$calendar = $self->_calendar($year);
+    }
+    return sub {
+	while (0 < $days) {
+	    while ($day < 0) {
+		$calendar = $self->_calendar(--$year);
+		$day = $#$calendar;
+	    }
+	    --$days;
+	    if ($calendar->[$day--]) {
+		return $self->set_yd($year, $day+2);
+	    }
+	}
+	return undef;
+    };
 }
 
 #   -b----H----b----b----H----b-
@@ -425,12 +471,10 @@ sub add_businessdays {
 	# move forward in time
 	$days -= $calendar->[$day] if !$alignment;
 	while (0 < $days || !$days && !$alignment) {
-	    if ($day < $#$calendar) {
-		++$day;
-	    }
-	    else {
-		$day = 0;
+	    ++$day;
+	    while (@$calendar <= $day) {
 		$calendar = $self->_calendar(++$year);
+		$day = 0;
 	    }
 	    $days -= $calendar->[$day];
 	}
@@ -439,10 +483,8 @@ sub add_businessdays {
 	# move backwards in time
 	$days += $calendar->[$day] if $alignment;
 	while ($days < 0 || !$days && $alignment) {
-	    if (0 < $day) {
-		--$day;
-	    }
-	    else {
+	    --$day;
+	    while ($day < 0) {
 		$calendar = $self->_calendar(--$year);
 		$day = $#$calendar;
 	    }
@@ -485,6 +527,14 @@ Date::Gregorian::Business - business days extension for Date::Gregorian
   $date->add_businessdays(-10, 0);
   $date->add_businessdays(-10, 1);
 
+  $iterator = $date->iterate_businessdays_upto($date2, '<');
+  $iterator = $date->iterate_businessdays_upto($date2, '<=');
+  $iterator = $date->iterate_businessdays_downto($date2, '>');
+  $iterator = $date->iterate_businessdays_downto($date2, '>=');
+  while ($iterator->()) {
+    printf "%d-%02d-%02d\n", $date->get_ymd;
+  }
+
   $alignment = $date->get_alignment;
 
   # ----- configuration -----
@@ -495,7 +545,7 @@ Date::Gregorian::Business - business days extension for Date::Gregorian
 	[11, 22, [3, 2, 1, 0, 6, 5, 4]],        # Thanksgiving
 	[12, 25],                               # December 25
 	[12, 26, undef, [2005, 2010]],          # December 26 in 2005-2010
-	[12, 27, undef, sub { $_[0] & 1 }],     # December 27 in odd years
+	[12, 27, undef, sub { $_[1] & 1 }],     # December 27 in odd years
       ]
   );
 
@@ -637,6 +687,23 @@ business day before any non-business days.  If you add zero business
 days to some arbitrary date you get the unique date of the properly
 aligned business day next to it.
 
+I<iterate_businessdays_upto> and I<iterate_businessdays_downto>
+provide iterators over a range of business days.  They return a
+reference to a subroutine that can be called without argument in a
+while condition to set the given date iteratively to each one of a
+sequence of dates, while skipping non-business days.  The business
+day closest to the current date is always the first one to be
+visited (unless the sequence is all empty).  The limit parameter
+determines the end of the sequence, together with the relation
+parameter:  '<' excludes the upper limit from the sequence, '<='
+includes the upper limit, '>=' includes the lower limit and '>'
+excludes the lower limit.
+
+Each iterator maintains its own state; therefore it is legal to run
+more than one iterator in parallel or even create new iterators
+within iterations.  Undefining an iterator after use might help to
+save memory.
+
 I<get_alignment> retrieves the alignment (either 0 for morning or
 1 for evening).
 
@@ -743,8 +810,13 @@ no limit,
 
 =item *
 
-a reference of a subroutine taking a year and returning a boolean
-for whether the holiday is valid in that year.
+a reference of a subroutine taking a date object and a year, month
+and day, returning a boolean for whether the holiday is valid in
+that year.  Month and day are taken directly from the holiday
+definition (even where the month value is zero for dates relative
+to easter).  The date object is a clone of the original object
+(though not initialized to a particular date), just for safety.
+It may be changed while the original object should not be.
 
 =back
 

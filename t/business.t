@@ -7,7 +7,7 @@
 
 ######################### We start with some black magic to print on failure.
 
-BEGIN { $| = 1; print "1..280\n"; }
+BEGIN { $| = 1; print "1..310\n"; }
 END {print "not ok 1\n" unless $loaded;}
 use Date::Gregorian::Business;
 $loaded = 1;
@@ -125,6 +125,21 @@ sub test_equivalence {
     test $n, $result;
 }
 
+sub test_iterator {
+    my ($n, $date, $iterator, $steps) = @_;
+    my $base = $date->new;
+    my $result = 'CODE' eq ref $iterator;
+    my $distance = 0;
+    foreach my $step (@$steps) {
+	$distance += $step;
+	$result &&= $iterator->();
+	$result &&= $distance == $date->get_days_since($base);
+    }
+    $result &&= !$iterator->();
+    $result &&= $distance == $date->get_days_since($base);
+    test $n, $result;
+}
+
 my @my_holidays = (
     [6],                                        # Sundays
     [
@@ -134,6 +149,7 @@ my @my_holidays = (
 	[12, 27, undef, sub { $_[1] & 1 }],     # December 27 in odd years
 	[12, 28, undef, [undef, 2006]],		# December 28 until 2006
 	[12, 29, undef, [2007, undef]],		# December 29 from 2007 on
+	[12, 30, undef, 2009],			# December 30 in 2009
     ]
 );
 
@@ -292,7 +308,7 @@ test_calendar(23, $date, [
     (0, 1, 1, 1, 0, 1, 1),
     (0, 1, 1, 1, 1, 1, 1) x 3,
     (0, 1, 1, 1, 1, 0, 1),
-    (0, 1, 0, 1, 1, 1, 1),
+    (0, 1, 0, 0, 1, 1, 1),
 ], 2009, 11, 22);
 
 $date2->set_date($date->set_ymd(2005, 4, 23));
@@ -867,5 +883,169 @@ $date2 = Date::Gregorian::Business->new("redefine test")->
 test(278, defined($date) && defined($date2));
 test(279, 255 == $date->get_businessdays_until($date2)); # conf "de" still
 test(280, 250 == $date2->get_businessdays_since($date)); # conf "us"
+
+$date = Date::Gregorian::Business->new('us')->set_ymd(1999, 2, 1);
+$date2 = $date->new->set_ymd(1999, 3, 1);
+my $iter = $date->iterate_businessdays_upto($date2, '<');
+test_iterator(281, $date, $iter, [qw(
+    0 1 1 1 1
+    3 1 1 1 1
+    4 1 1 1
+    3 1 1 1 1
+)]);
+
+$date->set_ymd(1999, 2, 25);
+$iter = $date->iterate_businessdays_upto($date2, '<=');
+test_iterator(282, $date, $iter, [0, 1, 3]);
+
+$date->set_ymd(1999, 2, 13);
+$date2->set_ymd(1999, 2, 17);
+$iter = $date->iterate_businessdays_upto($date2, '<');
+test_iterator(283, $date, $iter, [3]);
+
+$date->set_ymd(1999, 2, 13);
+$date2->add_days(-1);
+$iter = $date->iterate_businessdays_upto($date2, '<=');
+test_iterator(284, $date, $iter, [3]);
+
+$date->set_ymd(1999, 2, 13);
+$iter = $date->iterate_businessdays_upto($date2, '<');
+test_iterator(285, $date, $iter, []);
+
+$date->set_ymd(1999, 2, 13);
+$date2->add_days(-1);
+$iter = $date->iterate_businessdays_upto($date2, '<=');
+test_iterator(286, $date, $iter, []);
+
+$date->set_ymd(1999, 2, 13);
+$date2->set_date($date);
+$iter = $date->iterate_businessdays_upto($date2, '<');
+test_iterator(287, $date, $iter, []);
+
+$date->set_ymd(1999, 2, 13);
+$date2->add_days(-1);
+$iter = $date->iterate_businessdays_upto($date2, '<=');
+test_iterator(288, $date, $iter, []);
+
+$date->set_ymd(1999, 2, 25);
+$date2->set_date($date);
+$iter = $date->iterate_businessdays_upto($date2, '<');
+test_iterator(289, $date, $iter, []);
+
+$date->set_ymd(1999, 2, 25);
+$date2->add_days(-1);
+$iter = $date->iterate_businessdays_upto($date2, '<=');
+test_iterator(290, $date, $iter, []);
+
+$date = Date::Gregorian::Business->new('us')->set_ymd(1999, 1, 31);
+$date2 = $date->new->set_ymd(1998, 12, 31);
+$iter = $date->iterate_businessdays_downto($date2, '>');
+test_iterator(291, $date, $iter, [qw(
+    -2 -1 -1 -1 -1
+    -3 -1 -1 -1
+    -4 -1 -1 -1 -1
+    -3 -1 -1 -1 -1
+)]);
+
+$date->set_ymd(1999, 1, 5);
+$iter = $date->iterate_businessdays_downto($date2, '>=');
+test_iterator(292, $date, $iter, [0, -1, -4]);
+
+$date->set_ymd(1999, 1, 18);
+$date2->set_ymd(1999, 1, 14);
+$iter = $date->iterate_businessdays_downto($date2, '>');
+test_iterator(293, $date, $iter, [-3]);
+
+$date->set_ymd(1999, 1, 18);
+$date2->add_days(1);
+$iter = $date->iterate_businessdays_downto($date2, '>=');
+test_iterator(294, $date, $iter, [-3]);
+
+$date->set_ymd(1999, 1, 18);
+$iter = $date->iterate_businessdays_downto($date2, '>');
+test_iterator(295, $date, $iter, []);
+
+$date->set_ymd(1999, 1, 18);
+$date2->add_days(1);
+$iter = $date->iterate_businessdays_downto($date2, '>=');
+test_iterator(296, $date, $iter, []);
+
+$date->set_ymd(1999, 1, 18);
+$date2->set_date($date);
+$iter = $date->iterate_businessdays_downto($date2, '>');
+test_iterator(297, $date, $iter, []);
+
+$date->set_ymd(1999, 1, 18);
+$date2->add_days(1);
+$iter = $date->iterate_businessdays_downto($date2, '>=');
+test_iterator(298, $date, $iter, []);
+
+$date->set_ymd(1999, 1, 7);
+$date2->set_date($date);
+$iter = $date->iterate_businessdays_downto($date2, '>');
+test_iterator(299, $date, $iter, []);
+
+$date->set_ymd(1999, 1, 7);
+$date2->add_days(1);
+$iter = $date->iterate_businessdays_downto($date2, '>=');
+test_iterator(300, $date, $iter, []);
+
+$date->set_ymd(1999, 12, 25);
+$date2->set_date($date)->add_days(12);
+$iter = $date->iterate_days_upto($date2, '<');
+my $iter2;
+$result = '';
+my $loopcheck = 12;
+my $loopcheck2 = -1;
+while ($iter->()) {
+    last if !$loopcheck--;
+    my ($m, $d) = ($date->get_ymd)[1, 2];
+    $result .= sprintf "%02d/%02d:", $m, $d;
+    $date2->set_date($date)->add_businessdays(2);
+    $iter2 = $date->iterate_businessdays_upto($date2, '<');
+    $loopcheck2 = 2;
+    while ($iter2->()) {
+	last if !$loopcheck2--;
+	($m, $d) = ($date->get_ymd)[1, 2];
+	$result .= sprintf " %02d/%02d", $m, $d;
+    }
+    last if $loopcheck2;
+    $result .= "\n";
+}
+test 301, !$loopcheck && !$loopcheck2;
+test 302, $result eq
+    "12/25: 12/28 12/29\n" .
+    "12/26: 12/28 12/29\n" .
+    "12/27: 12/28 12/29\n" .
+    "12/28: 12/28 12/29\n" .
+    "12/29: 12/29 12/30\n" .
+    "12/30: 12/30 12/31\n" .
+    "12/31: 12/31 01/04\n" .
+    "01/01: 01/04 01/05\n" .
+    "01/02: 01/04 01/05\n" .
+    "01/03: 01/04 01/05\n" .
+    "01/04: 01/04 01/05\n" .
+    "01/05: 01/05 01/06\n";
+
+
+$result = Date::Gregorian::Business->define_configuration('Argh', {});
+test 303, !defined($result);
+
+$result = $date->configure_business({});
+test 304, !defined($result);
+
+$result = Date::Gregorian::Business->configure_business({});
+test 305, !defined($result);
+
+$result = Date::Gregorian::Business->configure_business([[6], []]);
+test 306, $result;
+
+$date = Date::Gregorian::Business->new->set_ymd(2006, 1, 19)->align(0);
+$date2 = $date->new;
+test 307, 0 == $date->get_businessdays_since($date2);
+test 308, 0 == $date->get_businessdays_until($date2);
+$date2->add_days(-1)->align(1);
+test 309, 0 == $date->get_businessdays_since($date2);
+test 310, 0 == $date2->get_businessdays_until($date);
 
 __END__

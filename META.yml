@@ -1,6 +1,6 @@
 ---
 name:              Date-Gregorian
-version:           0.08
+version:           0.09
 version_from:      lib/Date/Gregorian.pm
 license:           perl
 distribution_type: module
