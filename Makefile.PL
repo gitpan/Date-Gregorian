@@ -1,8 +1,8 @@
-# Copyright (c) 1999-2005 Martin Hasch.  All rights reserved.
+# Copyright (c) 1999-2007 Martin Becker.  All rights reserved.
 # This package is free software; you can redistribute it and/or modify it
 # under the same terms as Perl itself.
 #
-# $Id: Makefile.PL,v 1.2 2006/01/19 18:02:21 martin Stab $
+# $Id: Makefile.PL,v 1.3 2007/06/15 19:54:19 martin Stab $
 
 use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
@@ -15,7 +15,7 @@ WriteMakefile(
     'NAME'	   => 'Date::Gregorian',
     'VERSION_FROM' => 'lib/Date/Gregorian.pm', # finds $VERSION
     $with_author? (
-	'AUTHOR'   => 'Martin Hasch (hasch-cpan-dg@cozap.com)',
+	'AUTHOR'   => 'Martin Becker (hasch-cpan-dg@cozap.com)',
 	'ABSTRACT' => 'Gregorian calendar',
     ): (),
     $guard_meta? (

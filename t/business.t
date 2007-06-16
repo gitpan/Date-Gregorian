@@ -1,4 +1,4 @@
-# Copyright (c) 2005 Martin Hasch.  All rights reserved.
+# Copyright (c) 2005-2007 Martin Becker.  All rights reserved.
 # This package is free software; you can redistribute it and/or modify it
 # under the same terms as Perl itself.
 
@@ -7,7 +7,7 @@
 
 ######################### We start with some black magic to print on failure.
 
-BEGIN { $| = 1; print "1..310\n"; }
+BEGIN { $| = 1; print "1..347\n"; }
 END {print "not ok 1\n" unless $loaded;}
 use Date::Gregorian::Business;
 $loaded = 1;
@@ -1047,5 +1047,83 @@ test 308, 0 == $date->get_businessdays_until($date2);
 $date2->add_days(-1)->align(1);
 test 309, 0 == $date->get_businessdays_since($date2);
 test 310, 0 == $date2->get_businessdays_until($date);
+
+$date = Date::Gregorian::Business->new->configure_business([[], []]);
+test 311, ref $date;
+$date->set_ymd(2001, 12, 1);
+$date2 = $date->new->set_ymd(2003, 1, 31);
+my $delta1 = $date2->get_days_since($date);
+my $delta2 = $date2->get_businessdays_since($date);
+test 312, $delta1 == $delta2;
+test 313, 30+365+31 == $delta2;
+
+my @strange_holidays = (
+    [],
+    [
+        #            2284       2285       3784       3785
+	[0, -115], # 2283-12-13 2284-11-27 3784-01-01 3784-12-16
+	[0, -80],  # 2284-01-17 2285-01-01 3784-02-05 3785-01-20
+	[0, 250],  # 2284-12-12 2285-11-27 3784-12-31 3785-12-16
+	[0, 284],  # 2285-01-15 2285-12-31 3785-02-03 3786-01-19
+    ]
+);
+
+$date->configure_business(\@strange_holidays);
+test 314, !$date->set_ymd(2284,  1, 17)->is_businessday;
+test 315,  $date->set_ymd(2284, 11, 27)->is_businessday;
+test 316, !$date->set_ymd(2284, 12, 12)->is_businessday;
+test 317, !$date->set_ymd(2285,  1,  1)->is_businessday;
+test 318,  $date->set_ymd(2285,  1, 15)->is_businessday;
+test 319, !$date->set_ymd(2285, 11, 27)->is_businessday;
+test 320, !$date->set_ymd(2285, 12, 31)->is_businessday;
+test 321, !$date->set_ymd(3784,  1,  1)->is_businessday;
+test 322, !$date->set_ymd(3784,  2,  5)->is_businessday;
+test 323,  $date->set_ymd(3784, 12, 16)->is_businessday;
+test 324, !$date->set_ymd(3784, 12, 31)->is_businessday;
+test 325, !$date->set_ymd(3785,  1, 20)->is_businessday;
+test 326,  $date->set_ymd(3785,  2,  3)->is_businessday;
+test 327, !$date->set_ymd(3785, 12, 16)->is_businessday;
+
+# paranoia starts here
+
+@strange_holidays = (
+    [],
+    [
+        [0, 0, [0, 0, 0, 0, 0, 0, -115]],
+        [0, 0, [0, 0, 0, 0, 0, 0, -80]],
+        [0, 0, [0, 0, 0, 0, 0, 0, 250]],
+        [0, 0, [0, 0, 0, 0, 0, 0, 284]],
+    ]
+);
+
+$date->configure_business(\@strange_holidays);
+test 328, !$date->set_ymd(2284,  1, 17)->is_businessday;
+test 329,  $date->set_ymd(2284, 11, 27)->is_businessday;
+test 330, !$date->set_ymd(2284, 12, 12)->is_businessday;
+test 331, !$date->set_ymd(2285,  1,  1)->is_businessday;
+test 332,  $date->set_ymd(2285,  1, 15)->is_businessday;
+test 333, !$date->set_ymd(2285, 11, 27)->is_businessday;
+test 334, !$date->set_ymd(2285, 12, 31)->is_businessday;
+test 335, !$date->set_ymd(3784,  1,  1)->is_businessday;
+test 336, !$date->set_ymd(3784,  2,  5)->is_businessday;
+test 337,  $date->set_ymd(3784, 12, 16)->is_businessday;
+test 338, !$date->set_ymd(3784, 12, 31)->is_businessday;
+test 339, !$date->set_ymd(3785,  1, 20)->is_businessday;
+test 340,  $date->set_ymd(3785,  2,  3)->is_businessday;
+test 341, !$date->set_ymd(3785, 12, 16)->is_businessday;
+
+$result = Date::Gregorian::Business->define_configuration('t1', 'unheard of');
+test 342, !defined $result;
+$result = Date::Gregorian::Business->define_configuration('t2', 't1');
+test 343, !defined $result;
+$result = Date::Gregorian::Business->define_configuration('t3', 'us');
+test 344, $result;
+
+$my_make_calendar2_called = 0;
+$result = Date::Gregorian::Business->configure_business(\&my_make_calendar2);
+test 345, $result;
+$date2 = Date::Gregorian::Business->new();
+test_calendar(346, $date2, [1, 0, 0, 1], 1998, 7, 3);
+test 347, 1 == $my_make_calendar2_called;
 
 __END__

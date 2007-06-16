@@ -40,3 +40,20 @@ Revision history for Perl extension Date::Gregorian.
 	- fixed detail of holiday definition parsing and related documentation
 	- changed alignment accessor to no longer use isa
 	- added more checks in t/basic.t and t/business.t
+
+0.10 Thu Jun 15 21:47:00 2007
+	- replaced Date::Gregorian::Exact by a dummy croaking when imported
+	- updated t/exact.t to reflect Date::Gregorian::Exact suspension
+	- added DateTime interoperability
+	- added methods get_string and set_string
+	- added methods get_days_until and compare
+	- added method get_localtime
+	- added calendar example script
+	- fixed a bug in get_ywd/check_ywd related to days late in December
+	- fixed return value of set_weekday
+	- revised documentation
+	- upgraded META.yml to conform to spec v1.3
+	- added checks in t/basic.t and t/business.t
+	- added t/datetime.t, t/localtime.t and t/string.t
+	- added t/pod-coverage.t
+

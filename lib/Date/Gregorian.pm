@@ -1,8 +1,8 @@
-# Copyright (c) 1999-2001 Martin Hasch.  All rights reserved.
+# Copyright (c) 1999-2007 Martin Becker.  All rights reserved.
 # This package is free software; you can redistribute it and/or modify it
 # under the same terms as Perl itself.
 #
-# $Id: Gregorian.pm,v 1.9 2006/01/21 22:30:32 martin Stab $
+# $Id: Gregorian.pm,v 1.13 2007/06/16 12:00:51 martin Stab $
 
 package Date::Gregorian;
 
@@ -23,7 +23,7 @@ require Exporter;
 );
 @EXPORT_OK = map @{$_}, values %EXPORT_TAGS;
 
-$VERSION = 0.09;
+$VERSION = '0.10';
 
 # ----- object definition -----
 
@@ -35,7 +35,8 @@ use constant F_TR_DATE => 1;	# first Gregorian date in dayno format
 use constant F_TR_EYR  => 2;	# first Gregorian easter year
 use constant F_YMD     => 3;	# [year, month, day] (on demand, memoized)
 use constant F_YDYW    => 4;	# [yearday, year, week] (on demand, memoized)
-use constant FIELDS    => 5;
+use constant F_SEC_NS  => 5;	# [seconds, nanoseconds] (optional)
+use constant FIELDS    => 6;
 
 # ----- other constants -----
 
@@ -63,15 +64,20 @@ use constant DECEMBER  => 12;
 # ----- predefined private variables -----
 
 my @m2d      = map +($_ * 153 + 2) / 5, (0..11);
-my $epoch    = _ymd2dayno( 1970, 1, 1, undef);
+my $epoch    = _ymd2dayno( 1970, 1, 1, 1, 1);
 my @defaults = (
     $epoch,				# F_DAYNO
-    _ymd2dayno(1582, 10, 15, undef),	# F_TR_DATE
+    _ymd2dayno(1582, 10, 15, 1, 1),	# F_TR_DATE
     1583,				# F_TR_EYR
     undef,				# F_YMD
     undef,				# F_YDYW
+    undef,				# F_SEC_NS
 );
 my ($gmt_epoch, $gmt_correction) = _init_gmt();
+my $datetime_epoch = 307;
+my $default_sec_ns = [0, 0];
+my %JG = ('J' => 0, 'G' => 1);
+my $localtime_offset = 0;
 
 # ----- private functions -----
 
@@ -83,11 +89,12 @@ sub _divmod {
     return (($_[0] - $mod) / $_[1], $mod);
 }
 
-# $dayno = _ymd2dayno($year, $month, $day, $tr_date)
-# undefined $tr_date means minus infinity
+# $dayno = _ymd2dayno($year, $month, $day, $tr_date, $fixed)
+# fixed == 1: tr_date == 0: force Julian, tr_date == 1: force Gregorian
+# fixed == boolean false: normal operation
 #
 sub _ymd2dayno {
-    my ($y, $m, $d, $s) = @_;
+    my ($y, $m, $d, $s, $fixed) = @_;
 
     if    (15 <= $m) { $m -= 3;      $y += $m / 12; $m %= 12;          }
     elsif ( 3 <= $m) { $m -= 3;                                        }
@@ -95,7 +102,7 @@ sub _ymd2dayno {
     else             { $m = 14 - $m; $y -= $m / 12; $m = 11 - $m % 12; }
 
     $d += $m2d[$m] + $y * 365 + ($y >> 2) - 1;
-    if (!defined($s) || $s <= $d) {
+    if (!$fixed && $s <= $d || $fixed && $s) {
 	$y = 0 <= $y? $y / 100: -((99 - $y) / 100);
 	$d -= $y - ($y >> 2) - 2;
     }
@@ -180,6 +187,14 @@ sub _ydyw {
 	$base = _dec31dayno($y-1, $s) + 4;
 	{ no integer; $base -= $base % 7 };
     }
+    else {
+	my $limit = _dec31dayno($y, $s) + 4;
+	{ no integer; $limit -= $limit % 7 };
+	if ($limit <= $n) {
+	    $base = $limit;
+	    $y ++;
+	}
+    }
     my $yw = ($n - $base) / 7 + 1;
     return [$yd, $y, $yw];
 }
@@ -189,7 +204,7 @@ sub _ydyw {
 sub _init_gmt {
     my ($sec, $min, $hour, $mday, $mon, $year) = gmtime(0);
     return (
-	_ymd2dayno(1900 + $year, 1 + $mon, $mday, undef),
+	_ymd2dayno(1900 + $year, 1 + $mon, $mday, 1, 1),
 	($hour*60 + $min)*60 + $sec
     );
 }
@@ -212,7 +227,7 @@ sub configure {
     my Date::Gregorian $self = shift;
     my ($y, $m, $d, $e) = @_;
     @{$self}[F_TR_DATE, F_YMD, F_YDYW] =
-	( _ymd2dayno($y, $m, $d, undef), undef, undef );
+	( _ymd2dayno($y, $m, $d, 1, 1), undef, undef );
     $self->[F_TR_EYR] = $e if defined $e;
     return $self;
 }
@@ -329,9 +344,19 @@ sub add_days {
     return $self;
 }
 
+sub get_days_until {
+    my Date::Gregorian ($self, $then) = @_;
+    return $then->[F_DAYNO] - $self->[F_DAYNO];
+}
+
 sub get_days_since {
     my Date::Gregorian ($self, $then) = @_;
     return $self->[F_DAYNO] - $then->[F_DAYNO];
+}
+
+sub compare {
+    my Date::Gregorian ($self, $then) = @_;
+    return $self->[F_DAYNO] <=> $then->[F_DAYNO];
 }
 
 sub set_easter {
@@ -374,8 +399,32 @@ sub set_localtime {
     # while $self might be configured to interpret Julian,
     # we must ignore $self->[F_TR_DATE] here
     @{$self}[F_DAYNO, F_YMD, F_YDYW] =
-	( _ymd2dayno($y, $m, $d, undef), undef, undef );
+	( _ymd2dayno($y, $m, $d, 1, 1), undef, undef );
     return $self;
+}
+
+sub get_localtime {
+    no integer;
+    my Date::Gregorian $self = $_[0];
+
+    my $time = $self->get_gmtime - $localtime_offset;
+    foreach my $step (0..3) {
+	my ($S, $M, $H, $d, $m, $y) = localtime $time;
+	my $dd = _ymd2dayno(1900+$y, 1+$m, $d, 1, 1) - $self->[F_DAYNO];
+	return undef if 24855 < abs($dd);
+	my $delta = (($dd * 24 + $H) * 60 + $M) * 60 + $S;
+	if ($delta || $dd) {
+	    if ($dd < 0 && 0 <= $delta) {
+		# hours/minutes/seconds should not cancel out date increase
+		$delta = -1;
+	    }
+	    $time -= $delta;
+	    $localtime_offset += $delta if !$step;
+	    next;
+	}
+	return $time;
+    }
+    return undef;
 }
 
 sub set_weekday {
@@ -391,6 +440,7 @@ sub set_weekday {
 	$self->[F_DAYNO] += $delta;
 	@{$self}[F_YMD, F_YDYW] = (undef, undef);
     }
+    return $self;
 }
 
 sub get_days_in_year {
@@ -426,9 +476,63 @@ sub iterate_days_downto {
     };
 }
 
+# --- DateTime interface ---
+
+sub set_datetime {
+    my ($self, $datetime) = @_;
+    if (!$datetime->time_zone->is_floating) {
+	$datetime = $datetime->clone->set_time_zone('floating');
+    }
+    my ($rd_days, @sec_ns) = $datetime->utc_rd_values;
+    @{$self}[F_DAYNO, F_YMD, F_YDYW, F_SEC_NS] =
+       ($rd_days + $datetime_epoch, undef, undef, \@sec_ns);
+    return $self;
+}
+
+sub utc_rd_values {
+    my $self = $_[0];
+    return (
+	$self->[F_DAYNO] - $datetime_epoch,
+	@{$self->[F_SEC_NS] || $default_sec_ns}
+    );
+}
+
+sub truncate_to_day {
+    my $self = $_[0];
+    undef $self->[F_SEC_NS];
+    return $self;
+}
+
+sub from_object {
+    my ($class, %param) = @_;
+    return $class->new->set_datetime($param{'object'});
+}
+
+# must not define time_zone and set_time_zone methods
+
+# --- stringification ---
+
+sub get_string {
+    my $self = $_[0];
+    my $suffix = $self->is_gregorian? 'G': 'J';
+    return sprintf "%d-%02d-%02d$suffix", $self->get_ymd;
+}
+
+sub set_string {
+    my ($self, $string) = @_;
+    if ($string =~ /^(-?\d+)-(\d+)-(\d+)([JG]?)\z/) {
+	$self->[F_DAYNO] =
+	    _ymd2dayno($1, $2, $3, $4? ($JG{$4}, 1): $self->[F_TR_DATE]);
+	@{$self}[F_YMD, F_YDYW] = (undef, undef);
+	return $self;
+    }
+    return undef;
+}
+
 # no DESTROY method, nothing to clean up
 
 1;
+
 __END__
 
 =head1 NAME
@@ -467,11 +571,17 @@ Date::Gregorian - Gregorian calendar
 
   $date->add_days(-100);
   $delta = $date->get_days_since($date2);
+  $delta = $date2->get_days_until($date);
   $date->set_easter($y);
   $date->set_today;
   $date->set_localtime($time);
   $date->set_gmtime($time);
   $time = $date->get_gmtime;
+
+  # compare two dates
+  $cmp = $date->compare($date2);
+  # sort dates
+  @sorted = sort {$a->compare($b)} @dates;
 
   $iterator = $date->iterate_days_upto($date2, '<');
   $iterator = $date->iterate_days_upto($date2, '<', $step);
@@ -482,15 +592,15 @@ Date::Gregorian - Gregorian calendar
   $iterator = $date->iterate_days_downto($date2, '>=');
   $iterator = $date->iterate_days_downto($date2, '>=', $step);
   while ($iterator->()) {
-    printf "%d-%02d-%02d\n", $date->get_ymd;
+    printf "%04d-%02d-%02d\n", $date->get_ymd;
   }
-
-  $date2->set_ymd(1917, 10, 25);      # pre-Gregorian Oct 25, 1917
-  $date->set_date($date2);            # Gregorian Nov 7, 1917 (same day)
 
   $date->configure(1752, 9, 14);
   $date->configure(1752, 9, 14, 1753);        # United Kingdom
   $date2->configure(1918, 2, 14);             # Russia
+
+  $date2->set_ymd(1917, 10, 25);      # pre-Gregorian Oct 25, 1917
+  $date->set_date($date2);            # Gregorian Nov 7, 1917 (same day)
 
   if ($date->is_gregorian) {
     # date is past configured calendar reformation,
@@ -508,6 +618,19 @@ Date::Gregorian - Gregorian calendar
 
   # calculate number of days in 2000:
   $days = $date->get_days_in_year(2000);
+
+  # plaintext representation of dates
+  $str = $date->get_string;
+  $date->set_string($str) or warn "syntax error";
+
+  # DateTime interface
+  use DateTime;
+  $dt = DateTime->now(time_zone => 'Europe/Berlin');
+  $date->set_datetime($dt);
+  $dt = DateTime->from_object(object => $date);
+  $date = Date::Gregorian->from_object($dt);
+  ($rata_die, $sec, $nanosec) = $date->utc_rd_values();
+  $date->truncate_to_day;
 
 =head1 DESCRIPTION
 
@@ -553,22 +676,34 @@ time conversion functions.  Weekday numbers, however, are zero-based
 for ease of use as array indices.
 
 (Author's note: I wish now I had defined 1-based weekdays when the
-module was young, to make things nice and consistent, but now it
-is too late.)
+module was young, to make things nice and consistent, but backwards
+compatibility suggests not to revise that decision.  If you prefer
+consistent code, subtract JANUARY from a month value and MONDAY
+from a weekday value to get a 0-based array index in any case.)
 
 Numeric parameters must be integer numbers throughout the module.
 
 For convenience, weekdays and months can be imported as constants
-I<MONDAY>, I<TUESDAY>, I<WEDNESDAY>, I<THURSDAY>, I<FRIDAY>,
-I<SATURDAY>, I<SUNDAY>, and I<JANUARY>, I<FEBRUARY>, I<MARCH>,
-I<APRIL>, I<MAY>, I<JUNE>, I<JULY>, I<AUGUST>, I<SEPTEMBER>,
-I<OCTOBER>, I<NOVEMBER>, I<DECEMBER>.  The tag I<:weekdays> provides
-all weekdays, as I<:months> does all month names.  By default,
+B<MONDAY>, B<TUESDAY>, B<WEDNESDAY>, B<THURSDAY>, B<FRIDAY>,
+B<SATURDAY>, B<SUNDAY>, and B<JANUARY>, B<FEBRUARY>, B<MARCH>,
+B<APRIL>, B<MAY>, B<JUNE>, B<JULY>, B<AUGUST>, B<SEPTEMBER>,
+B<OCTOBER>, B<NOVEMBER>, B<DECEMBER>.  The tag B<:weekdays> provides
+all weekdays, as B<:months> does all month names.  By default,
 nothing is exported.
+
+=head2 new
 
 I<new> creates a Date::Gregorian object from scratch (if called as
 a class method) or as a copy of an existing object.  The latter is
 more efficient than the former.  I<new> does not take any arguments.
+
+=head2 set_date
+
+I<set_date> sets one Date::Gregorian object to the same day another
+object represents.  The objects do not need to share a common calendar
+configuration.
+
+=head2 set_ymd
 
 I<set_ymd> sets year, month and day to new absolute values.  Days
 and months out of range are silently folded to standard dates, in
@@ -580,20 +715,30 @@ February 22, 2002 can be defined like this:
 
   $date->set_ymd(2002, 2, 22-10000)
 
+=head2 check_ymd
+
 I<check_ymd>, on the other hand, checks a given combination of
 year, month and day for validity.  Given a valid date, the object
 is updated and the object itself is returned, evaluating to true
 in boolean context.  Otherwise, the object remains untouched and
 B<undef> is returned.
 
+=head2 get_ymd
+
 I<get_ymd> returns year, month and day as a three-item list.
+
+=head2 get_weekday
 
 I<get_weekday> returns the weekday as a number in the range of 0
 to 6, with 0 representing Monday, 1 Tuesday, 2 Wednesday, 3 Thursday,
 4 Friday, 5 Saturday and 6 representing Sunday.
 
+=head2 set_yd get_yd
+
 I<set_yd> and I<get_yd> set or get dates as a pair of year and day
 in year numbers, day 1 representing January 1, day 32 February 1 etc.
+
+=head2 set_ywd get_ywd
 
 I<set_ywd> and I<get_ywd> set or get dates as a tuple of year, week
 in year and day in week numbers.  As noted above, weeks are supposed
@@ -601,6 +746,8 @@ to start on Mondays.  Weeks containing days of both December and
 January belong to the year containing more days of them.  Because
 of this, get_ywd and get_ymd may return different year numbers.
 Week numbers range from 1 to 53 (max).
+
+=head2 check_ywd
 
 I<check_ywd> checks a given combination of year, week in year and
 weekday for validity.  Given a valid date, the object is updated
@@ -613,11 +760,15 @@ Gregorian calendar reformation) was considerably shorter than a
 normal year.  Such a year has some invalid dates that otherwise
 might seem utterly inconspicuos.
 
+=head2 add_days
+
 I<add_days> increases, or, given a negative argument, decreases, a
 date by a number of days.  Its new value represents a day that many
 days later in history if a positive number of days was added.  Adding
 a negative number of days consequently shifts a date back towards
 the past.
+
+=head2 get_days_since
 
 I<get_days_since> computes the difference of two dates as a number
 of days.  The result is positive if the given date is an earlier
@@ -625,6 +776,19 @@ date than the one whose method is called, negative if it is a later
 one.  Look at it as a subtraction operation, yielding a positive
 result if something smaller is subtracted from something larger,
 "smaller" meaning "earlier" in this context.
+
+=head2 get_days_until
+
+I<get_days_until> computes the same value as I<get_days_since>,
+only with opposite sign.
+
+=head2 compare
+
+I<compare> compares two dates chronologically.  Result is zero
+if the dates refer to the same day, -1 if the method invocant
+refers to an earlier day than the parameter and 1 otherwise.
+
+=head2 iterate_days_upto iterate_days_downto
 
 I<iterate_days_upto> and I<iterate_days_downto> provide convenient
 methods to iterate over a range of dates.  They return a reference
@@ -643,8 +807,12 @@ Each iterator maintains its own state; therefore it is legal to run
 more than one iterator in parallel or even create new iterators
 within iterations.
 
+=head2 set_easter
+
 I<set_easter> computes the date of Easter sunday of a given year,
 taking into account how the date object was configured.
+
+=head2 set_weekday
 
 I<set_weekday> computes a date matching a given weekday that is
 close to the date it is applied to.  The optional relation parameter
@@ -652,29 +820,63 @@ may be one of '>=', '>', '<=' or '<', and determines if the resulting
 date should be "equal or later", later, "equal or earlier", or
 earlier, respectively, than the initial date.  Default is '>='.
 
-I<set_today> computes a date value equivalent to the current
-date in the current locale.  Local time is assumed to run in
-Gregorian mode.
+=head2 set_today
+
+I<set_today> computes a date value equivalent to the system's notion
+of the current date in the local timezone.  System time is assumed
+to run in Gregorian mode.
+
+=head2 set_localtime
 
 I<set_localtime> likewise computes a date value equivalent to a
-given time value in the current locale.
+given arbitrary time value in the local timezone.
 
-I<set_gmtime> computes a date value equivalent to a given system
-timestamp in the GMT locale.
+=head2 set_gmtime
 
-I<get_gmtime> converts a date value back to a system timestamp in
-the GMT locale.  Undef is returned if the date seems to be out of
-range.  Note that the precision of timestamps represented by date
-objects is normally limited to days.  Thus converting a timestamp
-to a date and back again usually truncates the timestamp to midnight.
-Extension classes may behave differently, however.
+I<set_gmtime> computes a date value equivalent to a given time value
+in the "GMT" system timezone.  This timezone represents a time scale
+counting a constant number of seconds per day since an OS- and
+implementation dependent starting point -- the epoch -- and not
+counting leap seconds.  This makes arithmetic on timestamps easy
+but forces clocks to be frequently adjusted to the earth rotation.
+On POSIX-like systems this timezone is used for timestamps.
+On systems using the gmtime call in any other fashion I<set_gmtime>
+and I<get_gmtime> are not guaranteed to comply with it.
 
-Note that Date::Gregorian does not define a I<get_localtime>
-method for lack of a simple way to deal with daylight saving time
-changes, leap seconds and other peculiarities of local timezones.
+=head2 get_gmtime
+
+I<get_gmtime> converts a date value back to a timestamp in the "GMT"
+timezone explained above.  This method may return undef if the date
+seems to be out of range.  Note that the precision of timestamps
+represented by Date::Gregorian objects is normally limited to days.
+Thus, converting a timestamp to a date and back again usually
+truncates the timestamp to midnight.  Extension classes may behave
+differently, however.
+
+=head2 get_localtime
+
+I<get_localtime> converts a date value back to a system timestamp
+in the current local timezone.  Undef is returned if the date seems
+to be out of range.  As with I<get_gmtime>, the precision is normally
+limited to days.  However, values returned by I<get_localtime> for
+successive days need not follow a simple arithmetic progression,
+as they interpolate actual localtime calls, and the local timezone
+may incorporate oddities like daylight saving time changes.
+
+Note also that timestamps are not portable.  While the conversion
+functions described here make an effort to cover the local clock
+behaviour, mostly in order to make set_today work, they depend on
+the Perl builtin functions I<localtime> and I<gmtime>, which in
+turn are OS- and implementation-specific.  I<localtime> may also
+depend on the environment and other dynamic configuration settings.
+
+=head2 get_days_in_year
 
 I<get_days_in_year> computes the number of days in a given year
-(independent of the year stored in the date object).
+(independent of the year stored in the date object, but taking
+into account its configuration).
+
+=head2 configure
 
 I<configure> defines the way the Gregorian calendar reformation
 should be handled in calculations with the date object and any new
@@ -686,13 +888,68 @@ Re-configuring a date object is legal and does not change the day
 in history it represents while possibly changing the year, month
 and day values related to it.
 
+=head2 is_gregorian
+
 I<is_gregorian> returns a boolean value telling whether a date is
 past the configured calendar reformation and thus will yield year,
 month and day values in Gregorian mode.
 
+=head2 get_string
+
+I<get_string> returns a plaintext representation of the date represented
+by an object.
+
+=head2 set_string
+
+I<set_string> restores a date value from a string returned by I<get_string>.
+Strings of the form "YYYY-MM-DD" are also accepted.  The return value
+is B<undef> if the syntax could not be recognized, otherwise the object.
+I<set_string> handles values out of range the same way I<set_ymd> does.
+
+=head2 DateTime interoperability
+
+Date::Gregorian objects can be converted to DateTime objects and
+vice versa.  From the view of DateTime, Date::Gregorian implements
+a calendar operating in the floating timezone.  From the view of
+Date::Gregorian, DateTime objects represent days in history in a
+way suitable for object initialization.  Higher precision
+components of DateTime objects, i.e. seconds and nanoseconds,
+are preserved for reverse conversion but otherwise ignored.
+
+=over 4
+
+=item set_datetime
+
+I<set_datetime> sets a Date::Gregorian object to the day represented
+by a given DateTime object.  It returns the updated object.
+
+=item from_object
+
+I<from_object> is a DateTime compatible constructor.  Arguments are
+mapped to a hash.  The value in the 'object' slot is taken to be a
+DateTime object.  The result is a Date::Gregorian object.  Note
+that Date::Gregorian is not a subclass of DateTime.
+
+=item utc_rd_values
+
+I<utc_rd_values> returns a list of rata die, seconds and nanoseconds
+values corresponding to the date currently represented by the object.
+Seconds and nanoseconds will default to zero if not initialized from
+some DateTime object, and will be ignored by all other Date::Gregorian
+methods.  In particular, date objects differing only in their hidden
+seconds or nanoseconds values are considered equivalent by I<compare>.
+
+=item truncate_to_day
+
+I<truncate_to_day> drops seconds and nanoseconds from a date.  This
+will have an effect on DateTime objects subsequently initialized
+from that object.  Return value is the object.
+
+=back
+
 =head1 AUTHOR
 
-Martin Hasch <hasch-cpan-dg@cozap.com>, November 1999.
+Martin Becker <hasch-cpan-dg@cozap.com>, November 1999.
 
 =head1 CAVEATS
 

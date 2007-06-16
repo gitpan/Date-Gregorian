@@ -1,4 +1,4 @@
-# Copyright (c) 1999-2001 Martin Hasch.  All rights reserved.
+# Copyright (c) 1999-2007 Martin Becker.  All rights reserved.
 # This package is free software; you can redistribute it and/or modify it
 # under the same terms as Perl itself.
 
@@ -7,7 +7,7 @@
 
 ######################### We start with some black magic to print on failure.
 
-BEGIN { $| = 1; print "1..207\n"; }
+BEGIN { $| = 1; print "1..261\n"; }
 END {print "not ok 1\n" unless $loaded;}
 use Date::Gregorian;
 $loaded = 1;
@@ -319,8 +319,6 @@ test_ymdg(130, $date, 48902, 1, 1, 1);
 $date = Date::Gregorian->new->set_ymd(2005, 12, 31);
 $date2 = $date->new->add_days(3);
 my $iter = $date->iterate_days_upto($date2, '<');
-# warn !defined($iter)? "iterator undefined\n": "ref of iterator is ", ref($iter), "\n";
-# warn "Martin was here\n";
 test 131, defined($iter) && 'CODE' eq ref($iter);
 
 $date->add_days(20);
@@ -477,5 +475,106 @@ test_ymd(205, $date, 2006, 12, 31);
 $result = $date->check_ywd(2004, 53, 6);
 test 206, $result;
 test_ymd(207, $date, 2005, 1, 2);
+
+# --- results of set_* methods
+
+$date = Date::Gregorian->new;
+$bate = $date->new;
+test 208, $bate != $date;
+
+$date2 = $date->set_date($bate);
+test 209, $date == $date2;
+
+$date2 = $date->set_ymd(2007, 4, 8);
+test 210, $date == $date2;
+
+$date2 = $date->set_yd(2007, 98);
+test 211, $date == $date2;
+
+$date2 = $date->set_ywd(2007, 14, 6);
+test 212, $date == $date2;
+
+$date2 = $date->set_easter(2007);
+test 213, $date == $date2;
+
+$date2 = $date->set_today;
+test 214, $date == $date2;
+
+$date2 = $date->set_localtime(1175990400);
+test 215, $date == $date2;
+
+$date2 = $date->set_gmtime(1175990400);
+test 216, $date == $date2;
+
+$date2 = $date->set_weekday(6, '<=');
+test 217, $date == $date2;
+
+# --- easter formula, border cases ---
+
+test_ymd(218, $date->set_easter(2011), 2011, 4, 24);
+test_ymd(219, $date->set_easter(2038), 2038, 4, 25);
+test_ymd(220, $date->set_easter(2049), 2049, 4, 18);
+test_ymd(221, $date->set_easter(2076), 2076, 4, 19);
+test_ymd(222, $date->set_easter(2201), 2201, 4, 19);
+test_ymd(223, $date->set_easter(2258), 2258, 4, 25);
+
+$date->configure(1600, 1, 1, 1700);
+test_ymd(224, $date->set_easter(1666), 1666, 4, 25);
+
+$date->configure(-5000, 1, 1, -5000);
+$date->set_easter(-4000);
+test_ymd(225, $date, -4000, 4, 16);
+
+# --- more checks of checks ---
+
+$date = Date::Gregorian->new;
+test 226, !$date->check_ymd();
+test 227, !$date->check_ymd(2007);
+test 228, !$date->check_ymd(2007, 6);
+test 229, !$date->check_ymd(2007, undef, 20);
+test 230, !$date->check_ymd(undef, 6, 20);
+test 231, !$date->check_ymd(2007, 6, 0);
+test 232, !$date->check_ymd(2007, 6, 31);
+test 233, !$date->check_ymd(2007, 6, 32);
+test 234, !$date->check_ymd(2007, 0, 1);
+test 235, !$date->check_ymd(2007, 13, 1);
+test 236, !$date->check_ymd(2147483647, 1, 1);
+test 237, !$date->check_ymd(-2147483647, 1, 1);
+
+my $MONDAY = Date::Gregorian::MONDAY;
+my $SUNDAY = Date::Gregorian::SUNDAY;
+test 238, $MONDAY + 6 == $SUNDAY;
+
+test 239, !$date->check_ywd();
+test 240, !$date->check_ywd(2007);
+test 241, !$date->check_ywd(2007, 20);
+test 242, !$date->check_ywd(2007, undef, $MONDAY);
+test 243, !$date->check_ywd(undef, 20, $MONDAY);
+test 244, !$date->check_ywd(2007, 20, $MONDAY-1);
+test 245, !$date->check_ywd(2007, 20, $SUNDAY+1);
+test 246, !$date->check_ywd(2007, 0, $SUNDAY);
+test 247, !$date->check_ywd(2007, 53, $MONDAY);
+test 248, !$date->check_ywd(2007, 54, $MONDAY);
+test 249,  $date->check_ywd(2008, 1, $MONDAY);
+test 250, !$date->check_ywd(2147483647, 20, $MONDAY);
+test 251, !$date->check_ywd(-2147483647, 1, $MONDAY);
+
+# --- get_days_until, compare ---
+
+$date = Date::Gregorian->new->set_ymd(1999, 11, 29);
+$date2 = $date->new->set_ymd(2007, 6, 14);
+
+test 252, 2754 == $date->get_days_until($date2);
+test 253, -2754 == $date2->get_days_until($date);
+test 254, -1 == $date->compare($date2);
+test 255, 1 == $date2->compare($date);
+$date2->set_date($date);
+test 256, 0 == $date->get_days_until($date2);
+test 257, 0 == $date->get_days_until($date);
+test 258, 0 == $date->compare($date2);
+test 259, 0 == $date->compare($date);
+$date2->configure(1752, 9, 14, 1753);
+test 260, 0 == $date->get_days_until($date2);
+test 261, 0 == $date->compare($date2);
 
 __END__

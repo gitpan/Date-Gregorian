@@ -1,18 +1,18 @@
 Date::Gregorian - Gregorian calendar
 ====================================
 
-Copyright (c) 1999-2005, Martin Hasch <hasch-cpan-dg@cozap.com>.
+Copyright (c) 1999-2007, Martin Becker <hasch-cpan-dg@cozap.com>.
 All rights reserved.
 
 Version
 -------
 
-This is Version 0.09 of Date::Gregorian.
+This is Version 0.10 of Date::Gregorian.
 
-DSLI status
------------
+DSLIP status
+------------
 
-bdpO (beta, developer, perl, object-oriented)
+bdpOp (beta, developer, perl, object-oriented, Standard-Perl)
 
 License
 -------
@@ -54,27 +54,38 @@ make
 make test
 make install
 
+Test customization
+------------------
+
+Some tests depend on assumptions about the current local timezone
+during testing and will not always be meaningful.  These tests can
+be disabled by setting WITHOUT_DATE_GREGORIAN_LOCALTIME_TESTS=1 in
+the environment or on the make test command line.
+
 Changes
 -------
 
 Since its first release, no major changes have been made to the
 module's basic interface.  Version 0.07 finally introduced the
 Date::Gregorian::Business extension.  Version 0.09 introduced
-iterators.  For a detailed history of changes, see the Changes file.
+iterators.  Version 0.10 introduced limited DateTime interoperability.
+For a detailed history of changes, see the Changes file.
 
-Future enhancements
+Ongoing development
 -------------------
 
-The oversimplifying Date::Gregorian::Exact extension is considered
-deprecated and most likely will drop out of the distribution at
-some point.  Look into the DateTime suite of modules for a more
+The oversimplifying Date::Gregorian::Exact extension has been
+abandoned.  Look into the DateTime suite of modules for a more
 comprehensive approach to handling timestamps and localization.
 
 More samples of business calendars and better ways to define even
-more of them will be added next.
+more of them will be added in the future.
 
 Fractional business days are an experimental feature so far.
 Their semantics are subject to further scrutiny.
+
+Eventually, the essentials of Date::Gregorian::Business might
+be put to work in a proper DateTime extension.
 
 More suggestions are welcome.
 

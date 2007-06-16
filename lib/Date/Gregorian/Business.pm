@@ -1,8 +1,8 @@
-# Copyright (c) 2005 Martin Hasch.  All rights reserved.
+# Copyright (c) 2005-2007 Martin Becker.  All rights reserved.
 # This package is free software; you can redistribute it and/or modify it
 # under the same terms as Perl itself.
 #
-# $Id: Business.pm,v 1.3 2006/01/21 22:40:48 martin Stab $
+# $Id: Business.pm,v 1.4 2007/06/16 11:37:44 martin Stab $
 
 package Date::Gregorian::Business;
 
@@ -24,7 +24,7 @@ use constant FIELDS      => F_OFFSET+4;
 
 # ----- predefined variables -----
 
-$VERSION = 0.02;
+$VERSION = 0.03;
 
 # elements of default biz calendars
 my $skip_weekend    = [ 0,  0,  0,  0,  0,  2,  1];  # Sat, Sun -> Mon
@@ -136,7 +136,7 @@ sub _make_make_cal {
 		    $index = $easter + $day->[1];
 		    $index += $day->[2]->[(496 + $day->[1]) % 7] if $day->[2];
 		}
-		$calendar->[$index] = 0 if 0 <= $index && $index < $#$calendar;
+		$calendar->[$index] = 0 if 0 <= $index && $index < @$calendar;
 	    }
 	}
 	return $calendar;
@@ -516,8 +516,8 @@ Date::Gregorian::Business - business days extension for Date::Gregorian
   
   $date2 = $date->new->set_ymd(2005, 3, 14);
 
-  $date2->align(0);				# morning
-  $date->align(1);				# evening
+  $date2->align(0);                          # morning
+  $date->align(1);                           # evening
 
   $delta = $date->get_businessdays_since($date2);
   $delta = -$date->get_businessdays_until($date2);
@@ -540,12 +540,12 @@ Date::Gregorian::Business - business days extension for Date::Gregorian
   # ----- configuration -----
 
   @my_holidays = (
-      [6],                                      # Sundays
+      [6],                                   # Sundays
       [
-	[11, 22, [3, 2, 1, 0, 6, 5, 4]],        # Thanksgiving
-	[12, 25],                               # December 25
-	[12, 26, undef, [2005, 2010]],          # December 26 in 2005-2010
-	[12, 27, undef, sub { $_[1] & 1 }],     # December 27 in odd years
+	[11, 22, [3, 2, 1, 0, 6, 5, 4]],     # Thanksgiving
+	[12, 25],                            # December 25
+	[12, 26, undef, [2005, 2010]],       # December 26 in 2005-2010
+	[12, 27, undef, sub { $_[1] & 1 }],  # December 27 in odd years
       ]
   );
 
@@ -589,8 +589,8 @@ Date::Gregorian::Business - business days extension for Date::Gregorian
   $date->configure_business(\&my_make_calendar) or die;
 
   # some pre-defined configurations
-  $date->configure_business('us');	# US banking
-  $date->configure_business('de');	# German nation-wide
+  $date->configure_business('us');           # US banking
+  $date->configure_business('de');           # German nation-wide
 
 =head1 DESCRIPTION
 
@@ -613,6 +613,10 @@ be chosen through an optional method argument.
 
 =head2 User methods
 
+=over 4
+
+=item new
+
 I<new>, called as a class method, creates and returns a new date
 object.  The optional parameter can be a configuration or (more
 typically) the name of a configuration.  If omitted, the current
@@ -624,6 +628,8 @@ I<new>, called as an object method, returns a clone of the object.
 A different configuration for the new object can be specified.
 Again, in case of bad configurations B<undef> is returned.
 
+=item is_businessday
+
 I<is_businessday> returns a nonzero number (typically 1) if the
 date currently represented by the object is a business day, or zero
 if it falls on a weekend or holiday.  Special business calendars
@@ -632,6 +638,8 @@ Objects configured that way may return 0.5 or even another numeric
 value between 0 and 1 for some dates.  In any case I<is_businessday>
 can be used in boolean context.
 
+=item align
+
 I<align> sets the alignment of a date.  An alignment of 0 means
 morning alignment, 1 means evening alignment.  With morning alignment,
 the current day is counted in durations extending into the future,
@@ -639,6 +647,8 @@ and not counted in durations extending from that date into the past.
 Mnemonic is, in the morning, a day's business lies ahead, whereas
 in the evening, it lies behind.  Night workers please pardon the
 simplification.
+
+=item get_businessdays_since get_businessdays_until
 
 There are two methods to count the number of business days between
 two dates.  Their only difference is the sign of the result:
@@ -651,6 +661,8 @@ is negative and vice versa.  The parameter may be an arbitrary
 Date::Gregorian object.  If it is not a Date::Gregorian::Business
 object its alignment is taken to be the default (morning).
 
+=item set_next_businessday
+
 I<set_next_businessday> moves an arbitrary date up or down to the
 next business day.  Its parameter must be one of the four relation
 operators ">=", ">", "<=" or "<" as a string.  ">=" means, the date
@@ -659,6 +671,8 @@ closest business day in the future otherwise.  ">" means the date
 should be changed to the closest business day truly later than the
 current date.  "<=" and "<" likewise work in the other direction.
 Alignment does not matter and is not changed.
+
+=item add_businessdays
 
 I<add_businessdays> moves an arbitrary date forward or backwards
 in time up to a given number of business days.  A positive number
@@ -687,6 +701,8 @@ business day before any non-business days.  If you add zero business
 days to some arbitrary date you get the unique date of the properly
 aligned business day next to it.
 
+=item iterate_businessdays_upto iterate_businessdays_downto
+
 I<iterate_businessdays_upto> and I<iterate_businessdays_downto>
 provide iterators over a range of business days.  They return a
 reference to a subroutine that can be called without argument in a
@@ -704,8 +720,12 @@ more than one iterator in parallel or even create new iterators
 within iterations.  Undefining an iterator after use might help to
 save memory.
 
+=item get_alignment
+
 I<get_alignment> retrieves the alignment (either 0 for morning or
 1 for evening).
+
+=back
 
 =head2 Configuration
 
@@ -725,11 +745,17 @@ definitions or more generally through a code reference, as explained
 below.  A number of such definitions of common interest will be
 accessible in later editions of this module or some related component.
 
+=over 4
+
+=item define_configuration
+
 I<define_configuration> names and defines a configuration.  It can
 later be referenced by its name.  By convention, user-defined names
 should start with an uppercase letter, while configuration names
 provided as a part of the distribution will always start with a
 lowercase letter.
+
+=item configure_business
 
 I<configure_business>, used as an object method, re-configures that
 object.  It returns the object on success, B<undef> in case of a
@@ -773,7 +799,9 @@ a signed integer value defining a date relative to Easter Sunday.
 For example, C<[0, -2]> would refer to Good Friday (two days before
 Easter Sunday) while C<[0, 1]> would refer to Easter Monday.  The
 distance from Easter Sunday must be in the range of (roughly)
-C<-81..250> to make sure the actual date is a day of the same year.
+C<-80..250> to make sure the actual date is a day of the same year.
+Easter-related holidays ending up in different years are silently
+ignored.
 
 If C<$weekday_shift> is omitted or undefined, a holiday occurs on
 a fixed month and day (or distance from easter), no matter what day
@@ -830,6 +858,8 @@ These values will be returned by I<is_businessday> and added together
 in calculations.  The idea is that one call to the subroutine figures
 out the calendar of a whole year in one go.
 
+=item get_empty_calendar
+
 I<get_empty_calendar> is a helper method mainly intended for use
 in such a subroutine.  It takes two mandatory parameters, a year
 and a reference to an array like C<@weekend_days> above, and returns
@@ -837,12 +867,15 @@ a reference of an array of zeroes and ones representing the weekends
 and weekly business days of that year suitable to be further modified
 and finally returned by said subroutine.
 
+=back
+
 =head1 AUTHOR
 
-Martin Hasch <hasch-cpan-dg@cozap.com>, May 2005
+Martin Becker <hasch-cpan-dg@cozap.com>, May 2005.
 
 =head1 SEE ALSO
 
 L<Date::Gregorian>.
 
 =cut
+
