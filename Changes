@@ -57,3 +57,9 @@ Revision history for Perl extension Date::Gregorian.
 	- added t/datetime.t, t/localtime.t and t/string.t
 	- added t/pod-coverage.t
 
+0.11 Mon Jun 18 07:26:29 2007
+	- bugfix: t/pod-coverage.t crashed when Test::Pod::Coverage was
+	  not installed
+	- perl5lib bug workaround: "use base" would not work in perl 5.9.x
+	  when a constant named "FIELDS" was present
+

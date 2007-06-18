@@ -2,7 +2,7 @@
 # This package is free software; you can redistribute it and/or modify it
 # under the same terms as Perl itself.
 #
-# $Id: Gregorian.pm,v 1.13 2007/06/16 12:00:51 martin Stab $
+# $Id: Gregorian.pm,v 1.14 2007/06/18 06:11:56 martin Stab $
 
 package Date::Gregorian;
 
@@ -23,7 +23,7 @@ require Exporter;
 );
 @EXPORT_OK = map @{$_}, values %EXPORT_TAGS;
 
-$VERSION = '0.10';
+$VERSION = '0.11';
 
 # ----- object definition -----
 
@@ -36,7 +36,7 @@ use constant F_TR_EYR  => 2;	# first Gregorian easter year
 use constant F_YMD     => 3;	# [year, month, day] (on demand, memoized)
 use constant F_YDYW    => 4;	# [yearday, year, week] (on demand, memoized)
 use constant F_SEC_NS  => 5;	# [seconds, nanoseconds] (optional)
-use constant FIELDS    => 6;
+use constant NFIELDS   => 6;
 
 # ----- other constants -----
 

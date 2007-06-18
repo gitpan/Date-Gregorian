@@ -13,10 +13,11 @@ if ($@) {
 }
 
 use Date::Gregorian;
+use Date::Gregorian::Business;
 
 $| = 1;
 
-print "1..65\n";
+print "1..69\n";
 
 sub skip {
     my ($from, $to, $reason) = @_;
@@ -193,5 +194,11 @@ test 62, $date3;
 test 63, 0 == $date3->compare($date2);
 test 64, 0 == $date3->get_days_since($date2);
 test 65, DateTime->compare($dt, $dt3) > 0;
+
+my $date4 = Date::Gregorian::Business->new('us')->set_datetime($dt3);
+test 66, $date4;
+test 67, !$date4->compare($date2);
+test 68, !$date4->compare($date3);
+test 69, !$date3->compare($date4);
 
 __END__

@@ -4,9 +4,7 @@
 
 # check for POD coverage
 
-eval {
-    use Test::Pod::Coverage 0.08;
-};
+eval "use Test::Pod::Coverage 0.08";
 if ($@) {
    print
        "1..0 # Skip ",

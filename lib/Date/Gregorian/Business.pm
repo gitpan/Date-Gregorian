@@ -2,7 +2,7 @@
 # This package is free software; you can redistribute it and/or modify it
 # under the same terms as Perl itself.
 #
-# $Id: Business.pm,v 1.4 2007/06/16 11:37:44 martin Stab $
+# $Id: Business.pm,v 1.5 2007/06/18 06:11:56 martin Stab $
 
 package Date::Gregorian::Business;
 
@@ -15,16 +15,16 @@ use vars qw($VERSION);
 # ----- object definition -----
 
 # ............. index ..............      # .......... value ..........
-use constant F_OFFSET    => Date::Gregorian::FIELDS;
+use constant F_OFFSET    => Date::Gregorian::NFIELDS;
 use constant F_ALIGNMENT => F_OFFSET+0;  # 0 = morning, 1 = evening
 use constant F_MAKE_CAL  => F_OFFSET+1;  # sub (date, year) => [calendar]
 use constant F_YEAR      => F_OFFSET+2;  # currently initialized year
 use constant F_CALENDAR  => F_OFFSET+3;  # list of: 1 = biz, 0 = holiday
-use constant FIELDS      => F_OFFSET+4;
+use constant NFIELDS     => F_OFFSET+4;
 
 # ----- predefined variables -----
 
-$VERSION = 0.03;
+$VERSION = 0.04;
 
 # elements of default biz calendars
 my $skip_weekend    = [ 0,  0,  0,  0,  0,  2,  1];  # Sat, Sun -> Mon
