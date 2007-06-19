@@ -63,3 +63,8 @@ Revision history for Perl extension Date::Gregorian.
 	- perl5lib bug workaround: "use base" would not work in perl 5.9.x
 	  when a constant named "FIELDS" was present
 
+0.12 Tue Jun 19 14:02:53 2007
+	- fixed META.yml
+	- added t/version_numbers.t
+	- added examples/today
+
